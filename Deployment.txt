@@ -1,0 +1,399 @@
+(1) Open Google Cloud Platform 
+(2) Google Kuberneters engine -> Create cluster using defaults  -> mailsonymathew-cluster
+(3) Connect to cluster :
+	- Go inside cluster
+	- Click on 'connect' icon on top ->Copy the cmd in 'Run in Cloud Shell Option' -> Select run in Cloud Shell
+	- project id can be found by clicking project name
+	- click on open in new window 
+	- press enter-> allow authorization
+	- cmd: kubectl version
+
+
+(4) Deploy application to kubernetes cluster:
+	- docker image available in docker hub: in28min/hello-world-rest-api:0.0.1.RELEASE 
+	- cmd: kubectl create deployment hello-world-rest-api --image=in28min/hello-world-rest-api:0.0.1.RELEASE
+
+(5) Expose deployment to outer world
+	- cmd: kubectl expose deployment hello-world-rest-api --type=LoadBalancer --port=8080
+
+(6) Go to GCP UI-> My First Project-> Services and Ingress -> Click on end point to verify deployment -> append /hello-world or /hello-world-bean to the uri 
+
+(7) Refer kubeernates cmd doc for more cmds
+
+
+
+(8) I have created following images in docker hub:
+	- mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.11-SNAPSHOT
+	- mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.12-SNAPSHOT
+
+	- mailsonymathew/mmv2-docker-currency-conversion-service-kubernetes:0.0.11-SNAPSHOT
+	- mailsonymathew/mmv2-docker-currency-conversion-service-kubernetes:0.0.12-SNAPSHOT
+
+
+(9) Install kubectl:
+	- this is by default installed with Docker desktop
+	- cmd: kubectl version 
+
+
+(10) Install gcloud
+	- Open Google Cloud SDK Shell:
+		- cmd: gcloud init 
+		- project id: nifty-passkey-290311 project id can be found by clicking project name)
+	
+	- cmd to login:
+		- gcloud auth login
+
+	- conect to project:
+		- copy connect cmd from connect in 'Connect to cluster' in GJKE	
+	
+	- deploy microservices containers:
+		- Ensure kubectl is working: 
+
+			- cmd: kubectl version
+
+		- deploy currency-exchange:
+			- cmd: kubectl create deployment currency-exchange --image=mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.11-SNAPSHOT
+
+		- create currency-exchange service(i.e expose):
+			- cmd: kubectl expose deployment currency-exchange --type=LoadBalancer --port=8000
+
+		- deploy currency-conversion:
+			- cmd: kubectl create deployment currency-conversion --image=mailsonymathew/mmv2-docker-currency-conversion-service-kubernetes:0.0.11-SNAPSHOT
+
+		- create currecny-conversion service(i.e expose):
+			- cmd: kubectl expose deployment currency-conversion --type=LoadBalancer --port=8100
+
+
+		- get exposed services:
+			- cmd : kubectl get svc
+			- note down external ip adresses( thsi might take some time to appear):
+				- currency-conversion : 35.188.13.222
+				- currency-exchange   : 35.193.24.14
+
+		- run following cmds in local googel cmd shell after connecting to cluster or launch cloud shell in gcloud using connect:
+			- currency exchange urL: http://localhost:8000/currency-exchange/from/USD/to/INR
+			- replace local host with external ip :
+				: http://35.193.24.14:8000/currency-exchange/from/USD/to/INR
+			- cmd: curl http://35.193.24.14:8000/currency-exchange/from/USD/to/INR :
+				- will get service response back
+			- currency-conversion-feign-url: http://localhost:8100/currency-converter-feign/from/USD/to/INR/quantity/10
+			- replace local host with external ip :
+				: http://35.188.13.222:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+			- cmd: curl http://35.188.13.222:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+				- will get a response back
+			- The above urls can alo be verified from a browser
+
+
+(11) Envronment variable in Currency Conversion Service package define in CurrencyExchangeProxy.java:
+		- The env variable CURRENCY_EXCHANGE_SERVICE_HOST is automatically defined in Kubernetes 
+		- For all services Kubernetes automatically creates env variables:
+			- E.g. ig service name is sony_ms the env name will be SONY_MS_SERVICE_HOST
+
+(12) In Currency exchange contrller we are also printing out the pod name using environment.getProperty("HOSTNAME");
+
+
+(13) Specifying k8s configuration in yml:
+	- Get deployments: 
+		- kubectl get deployments
+	- Set up yaml file for deployment 'currency-exchange':
+		- using gcloud( connected to the k8s cluster) cmd prompt in por , local cd intp project folder:
+			- change directory : cmd : D: -> will take you to D directory 
+			- cmd: cd OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+			- Get deployment in yaml format:
+				- cmd: kubectl get deployment currency-exchange -o yaml 
+				- will print the entire yaml in console 
+			- Save deployment to a yaml file:
+				- cmd: kubectl get deployment currency-exchange -o yaml >> deployment.yaml
+				- This will generate a deployment.yaml file in the current directory 
+			- Save the service detals to a yaml file:
+				- cmd: kubectl get service currency-exchange -o yaml >> service.yaml
+				- Thsi will generate teh service.yaml file in the current directory 
+			- Copy paste the service.yaml file details to deployment.yaml and delete the service.yaml:
+				- Towards end of deployment.yaml fiel insert 3 hyfens(---) and after taht paste service.yaml fiel details. 
+				- Delete service.yaml
+			- change number of replica sets:
+				- search for 'replicas'( under deployment details -> sepc)  and change to 2 
+			- Apply replica set changes:
+				- See directory contents to ensure deployment.yaml is available:
+					- cmd: dir 
+				- See differences from previous deployment to what is specified in the deployment.ymal file:
+					- cmd:kubectl diff -f deployment.yaml
+					- Note : this will need diff util to be installed( use choclatey: cmd: choco install diffutils0
+				- apply the changes:
+					- kubectl apply -f deployment.yaml
+					- ignore teh warinings
+				- verfiy pods:
+					- kubectl get pods
+				- verify by running the curl cmd in google gcloud sell:
+					- use watch to execute teh curl cmd every 2 secs:
+						- cmd: watch curl http://34.132.153.69:8000/currency-exchange/from/USD/to/INR
+						- to terminate ; ctrl + c
+					- the above is demo of teh automatic load balncign that k8s provides
+					- Note: k8s provides service discover and load balancing for free 
+	
+
+(15) Get all details of pods, service, deployments , replicasets:
+	- cmd: kubectl get all -o wide	
+	- app anem will be available in the oputput of the above cmd
+
+(16) Delete all deployment related components for currency-exchange and cunnrecy-conversion:
+	- cmd: kubectl delete all -l app=currency-exchange
+	- cmd: kubectl delete all -l app=currency-conversion
+
+(17) Get all k8s configured compneents:
+	- cmd: kubectl get all
+
+(18)Deploy currency-exhange from deployment-yaml using gcloud in local:
+	- cd to   D:
+	- cd to : OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+	- cmd: kubectl apply -f deployment.yaml		   
+	- Get pods:
+		- cmd: kubectl get po
+	- Get services:
+		- cmd: kubectl get svc
+	- External ip:
+		- 104.154.233.123
+	- ul:
+		- http://104.154.233.123:8000/currency-exchange/from/USD/to/INR
+		- cmd: curl http://104.154.233.123:8000/currency-exchange/from/USD/to/INR
+
+(19) Deploy currency-converion-service using deployment.yaml:
+	- copy teh deplpoyment.yaml in currenc-exchange folder to currency-conversion folder(D:\OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-conversion-service-kubernetes)
+	- Make changes in deplyment.yaml file in currency-conversion folder
+	- Apply changes:
+		- cmd: kubectl apply -f deployment.yaml
+	- Get services:
+		- cmd: kubectl get svcs
+	- External ip:
+		-  35.188.13.222
+	- url:
+		- http://35.188.13.222:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+		- cmd: curl http://35.188.13.222:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+
+(20) Problem with using th K8Senv variable CURRENCY_EXCHANGE_SERVICE_HOST :
+ Note : The problem with using the K8S service host as env variable is that it depends on the Currency-Exchange service being up. It is much better to use a customized environment variable as below which we will configre in the deployment.yaml file
+	- Refer CurrencyExchangeProxy.java in Currency Conversion code package
+
+//CHANGE-KUBERNETES
+//@FeignClient(name = "currency-exchange", url = "${CURRENCY_EXCHANGE_SERVICE_HOST:http://localhost}:8000")
+// Note : The problem with using the K8S service host as env variable is that it depends on the Currency-Exchange service beign up. It is much better to use a customized environment variable as below which we will configure in the deployment.yaml file
+@FeignClient(name = "currency-exchange", url = "${CURRENCY_EXCHANGE_URI:http://localhost}:8000")
+
+
+(21) Now configure the customized env variable in deployment.yaml for currency-conversion-service:
+	- Define 'CURRENCY_EXCHANGE_URI'( this is referenced in CurrencyExchangeProx.java within the currency-conversion package)   value in deployment.yaml
+	-         env:
+          		- name: CURRENCY_EXCHANGE_URI
+            		value: http://currency-exchange   
+	- here value is http://service name
+	- The configuration is an array and we can use multipel env variables
+
+(22) Since we have made a code chage , recreate image and update tag:
+	- If image is beign created using spring-boot:build-image cmd : Update POM file for project version 12 as that will be used to create updated image tag
+	- Else if docker file is being used just specify teh new tag:
+		- cmd: docker build -t  mailsonymathew/mmv2-docker-currency-conversion-service-kubernetes:0.0.12-SNAPSHOT .
+
+	- Also chnage project version for currency-exchange and create a new image
+	- push out teh two ne wimages to docker hub:
+		- cmd: docker push mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.12-SNAPSHOT
+		- cmd: docker push mailsonymathew/mmv2-docker-currency-conversion-service-kubernetes:0.0.12-SNAPSHOT
+
+
+(23) Deploy Currency conversion service:
+	- change image version in deployment.yaml 
+	- cd to the D:\OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-conversion-service-kubernetes
+	- compare difference:
+		- cmd: kubectl diff -f deployment.yaml
+	- apply changes:
+		- cmd: kubectl apply -f deployment.yaml
+	- Note that the external ps do not chage with teh new deployment
+	- Get logs:
+		- cmd: kubectl get po
+		- cmd: kubectl logs pod-id
+		- follow logs:
+			- cmd: kubectl logs -f pod-id
+	- Verify:
+		- cmd: curl http://35.192.153.98:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+
+(24) Centralized configuration for env variables instead of hard coding in yaml:
+	- Create config map:
+		- - Open local gcloud and cd into project folder for curency-conversion:
+			- D
+			- cd OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-conversion-service-kubernetes>
+			 - cmd: kubectl create configmap service-name --from-literal=key=value
+			 - E.g:
+				- cmd: kubectl create configmap currency-conversion --from-literal=CURRENCY_EXCHANGE_URI=http://currency-exchange
+		- list confgmaps:
+			- cmd : kubectl get configmap
+		- get specifi conifg-map:
+			- cmd: kubectl get configmap configmap-name
+			- Eg: cmd: kubectl get configmap currency-conversion
+		- get configmap in yaml format:
+			- cmd: 	kubectl get configmap currency-conversion -o yaml
+		- output configfile:
+			- cmd: 	kubectl get configmap currency-conversion -o yaml >> configmap.yaml
+
+(25) Add configmap.yaml to deployment.yaml:
+		- Open local gcloud and cd into project folder for curency-conversion:
+			- D
+			- cd OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-conversion-service-kubernetes>
+		- clean and condense configmap.yaml
+		- open deployment.yaml:
+			- Add 3 hypens at teh end and copy paste contnts of configmap.yaml
+			- Coment out encv configuration in deploymnt.yaml
+				- Instead add reference to configmap define below as follows:
+					- envFrom:
+					    - confrigMapRef:
+                                                name: currency-conversion
+						    
+				
+		- Delete configmap.yaml
+		- Apply changes:
+			- cmd: kubectl apply -f deployment.yaml
+
+
+
+
+
+
+****************
+				
+(26)Centralized logging and monitoring:
+
+	- Enabling logging and tracing apis in Google coud:
+		- Search for api & services -> enable apis and services:
+			- search for logging -> Cloud logging api -> ensure it is enabled ( if not click on Manage and enable)
+			- search for stackdriver:
+				- enable all 4 results( Stack Moniotring API, Stack Error Reporting API, Stackdriver API, StackDriver Profiler API)
+
+	- do a watch curl for curency-conversion for every 0.1 secs in gcloud connect console:
+		- cmd: watch -n 0.1 curl http://34.68.157.42:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+	-access logs:
+		- go into cluster and scroll down to Features-> Cloud Operations for GKE-> View Audit Logs
+			- Logs Explorer:
+				 -> Logs Explorer-> click Query -> Kubernetes cluster-> Cluster name- > select my cluster and clear-> Kubernetes container ->  scroll down to pods	-> jump to now
+				- copy out a specific log -> copy the sleuth id
+				- query builder:
+					- resource.type="k8s-container"
+					- textPayLoad: sleuth id copid above
+			- Features-> Cloud Operations for GKE-> View Audit Logs-> View GKE dashboard:
+				- use to see various metrics
+
+(27) Microservices deployment:
+	- Get rollout history for curency conversion:
+		- cmd: kubectl rollout history deployment currency-conversion:
+		- will show list of revisions 
+	- Get rollout history for curency exchange:
+		- cmd: kubectl rollout histroy deployment currency-exchange:
+		- will show list of revisions 
+	- Go into currency-exchange deployment.yaml and deploy:
+		- change IMAGE to DUMMY -> purposefl error 
+		- go to D:OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+		- cmd: kubectl diff -f deployment.yaml
+		- cmd: kubectl apply -f deployment.yaml
+	-  Go onto google connect cloud shell:
+			- cmd:watch -n 0.1 curl http://35.192.153.98:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+			- you can see that the curency-conversion is still working
+			- cmd: kubectl get pods:
+				- you can see an od version of currency-exchange will still eb runnign while teh new version will have an invalid image name	
+			
+	- Undo deployment:
+		- Get history of deployments for currency-exchange:
+			-  cmd: kubectl rollout history deployment currency-exchange
+		- Undo deployment:
+			- cmd: kubectl rollout undo deployment currency-exchange --to-revision=1
+	- New dployment:
+		- Go into currency-exchange deployment.yaml and deploy:
+		- change IMAGE to docker push mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.12-SNAPSHOT
+		- go to D:OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+		- cmd: kubectl diff -f deployment.yaml
+		- cmd: kubectl apply -f deployment.yaml
+		-  Go onto google connect cloud shell:
+			- cmd:watch -n 0.1 curl http://35.192.153.98:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+			- you can see that the durign deployment the service went down
+			- cmd: kubectl get pods:
+				- you can see thhe old version was killed but teh new version isjust startign up. Thsi is  for a very short duration	
+
+(28) Avoiding downtime : Configuring Liveness and Readiness Probes fro Microservices 
+	- Kubernetes uses probes to check health of a microservice:
+		- if readiness probe is not successful, no traffic is sent to the pod
+		- if liveness probe is not successful, the pod is restarted
+	- Spring Boot actuator (>=2.3) provides inbuilt readiness and liveness probes:
+		- urls:
+			- /health/readiness
+			- /health/liveness
+	- Actuator is included in pom.xml
+	- Actuator probes( helath and liveness) are configured in application.properties
+	- Accessing the probes foro currency-exchange:
+		- url: External ip adress:8000/actuator:
+			-34.68.229.217:8000/actuator	
+			- 4 links will be shown
+			- select actuator/health:
+				- teo groups: liveness, readiness
+			- Liveness probe url: External ip adress:8000/actuator/health/liveness
+				- status : UP
+			- Readiness probe url: External ip adress:8000/actuator/health/readiness
+				- status: UP
+			- However both Liveness and Readiness probes will be down durign deployment
+	- Configuring K8s fro liveness and readiness probes:
+		- Currency Exchange deployment.yaml:
+			- In the spec after containers-> image, imagePullPolicy, name and before restartPolicy add the following:
+        readinessProbe:
+          httpGet:
+            port: 8000
+            path: /actuator/health/readiness
+        livenessProbe:
+          httpGet:
+            port: 8000
+            path: /actuator/health/liveness
+      restartPolicy: Always
+
+	- Deploy : 
+		- go to  D:OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+		- cmd: kubectl diff -f deployment.yaml
+		- cmd: kubectl apply -f deployment.yaml
+		-  Go onto google connect cloud shell:
+			- cmd:watch -n 0.1 curl http://35.192.153.98:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+			- you can see that the durign deployment the service continues running
+		- Change deployment.yaml to point to image version 12(mailsonymathew/mmv2-docker-currency-exchange-service-kubernetes:0.0.12-SNAPSHOT) and redeploy
+
+(29) Autoscaling microservices with K8s:
+	- cmd: kubectl get po
+	- go to  D:OneDrive\Study\DevOps\spring-microservices-v2-main\05.kubernetes\currency-exchange-service-kubernetes
+	- Manually Increase no. of instances/replica sets using cmd line for currency-exchange:
+		- cmd:kubectl scale deployment currency-exchange --replicas=2 
+		- Increase no. of replicas using the deployment.yaml
+	- Autoscaling option:
+		- Add following to deplyment.ymal of currency-exchange after probes defintion:
+			        resources:
+          				requests:
+            				cpu: "250m"  
+		- cmd:kubectl autoscale deployment currency-exchange --min=1 --max=3 --cpu-percent=1	
+		- Minimum no. of pods =1, maximum no. of pods = 3, autscalw if cpu uilisation percent hits 1( typically in prod we wil say 70 or 80)
+		- Executing the above cmd will generate a horizontalpodautoscaler
+		- Get the horizontalpodautoscaler:
+			- cmd: kubectl get hpa
+		- cmd: kubectl get pods 
+			- you can see new pods launcing up as w ehave setup a watch cmd aftwrer a minute or tow
+	- Get cpu utilization:
+		- cmd: kubectl top pod
+		- cmd: kubectl top nodes
+	- Finally deelte hpa:
+		- cd: kubectl delete hpa currency-exchange
+	- Deploy Currency exchange deployment.yaml with replicas =1 to bring down pods
+
+
+(30) delete all pods, service, deployments , replicasets etc. using a single label ( instead of deelting one by one) 
+	- get label using -o wide command 
+		-  cmd:kubectl get all -o wide
+	- label will be under selector column 
+	- cmd:kubectl delete all -l labelname ( E.g. kubectl delete all -l app=hello-world-rest-api)
+
+
+*****************
+urls:
+currency-exchange  : http://localhost:8000/currency-exchange/from/USD/to/INR
+http://34.68.229.217:8000/currency-exchange/from/USD/to/INR
+currency-conversion:
+With feign :   http://localhost:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
+http://34.68.157.42:8100/currency-conversion-feign/from/USD/to/INR/quantity/10
